@@ -1,7 +1,5 @@
 import Foundation
 import SwiftFFmpeg
-import class NIOConcurrencyHelpers.NIOAtomic
-import NIO
 import Logging
 
 public class AVRecorderContext {
@@ -11,8 +9,8 @@ public class AVRecorderContext {
     
     public var state: AVRecorderState
     
-    private var shouldStopReadFrame: NIOAtomic<Bool>
-    private var shouldOpenNewFile: NIOAtomic<Bool>
+    private var shouldStopReadFrame: Bool
+    private var shouldOpenNewFile: Bool
     
     private var inputFmtCtx: AVFormatContext!
     private var outputFmtCtx: AVFormatContext?
@@ -39,8 +37,8 @@ public class AVRecorderContext {
         self.streamName = streamName
         self.logger = logger
         self.state = .stop
-        self.shouldOpenNewFile = .makeAtomic(value: false)
-        self.shouldStopReadFrame = .makeAtomic(value: false)
+        self.shouldOpenNewFile = false
+        self.shouldStopReadFrame = false
         self.lastReadFrameTime = .distantFuture
     }
     
@@ -78,7 +76,7 @@ public class AVRecorderContext {
                     self.logger.warning(.init(stringLiteral: "\(self.streamName)恢复"))
                 }
             }
-            return self.shouldStopReadFrame.load() ? 1 : 0
+            return self.shouldStopReadFrame ? 1 : 0
         }
         
         try inputFmtCtx.openInput(inputUrl)
@@ -174,8 +172,8 @@ public class AVRecorderContext {
         let ostream = ofmtCtx.streams[ostreamIndex]
     
         // copy packet
-        pkt.pts = AVMath.rescale(pkt.pts, istream.timebase, ostream.timebase, AVRounding.nearInf.union(.passMinMax))
-        pkt.dts = AVMath.rescale(pkt.dts, istream.timebase, ostream.timebase, AVRounding.nearInf.union(.passMinMax))
+        pkt.pts = AVMath.rescale(pkt.pts, istream.timebase, ostream.timebase, rounding: AVRounding.nearInf, passMinMax: true)
+        pkt.dts = AVMath.rescale(pkt.dts, istream.timebase, ostream.timebase, rounding: AVRounding.nearInf, passMinMax: true)
         pkt.duration = AVMath.rescale(pkt.duration, istream.timebase, ostream.timebase)
         pkt.position = -1
         
@@ -198,7 +196,7 @@ public class AVRecorderContext {
     
     public func start(_ completeHandler: () -> Void) throws {
         guard state == .stop else { return }
-        shouldStopReadFrame.store(false)
+        shouldStopReadFrame = false
         
         try startInputFmtCtx()
         try startOutputFmtCtx()
@@ -217,7 +215,7 @@ public class AVRecorderContext {
                 lastReadFrameTime = .init()
                 try inputFmtCtx.readFrame(into: pkt)
                 // 判断是否开始新的切片
-                if self.shouldOpenNewFile.load() {
+                if self.shouldOpenNewFile {
                     if let newFmtCtx = newOutputFmtCtx,
                        let newMapping = newOutputStreamMapping
                     {
@@ -234,7 +232,7 @@ public class AVRecorderContext {
                         self.onSliceCompleteHandler?()
                         self.onSliceCompleteHandler = nil
                         
-                        self.shouldOpenNewFile.store(false)
+                        self.shouldOpenNewFile = false
                     } else {
                         noCatchError(self.streamName) {
                             try self.openNewOutputFmtCtx()
@@ -270,7 +268,7 @@ public class AVRecorderContext {
             completeHandler()
         } else {
             stopCompleteHandler = completeHandler
-            shouldStopReadFrame.store(true)
+            shouldStopReadFrame = true
         }
     }
     
@@ -279,7 +277,7 @@ public class AVRecorderContext {
         noCatchError(streamName) {
             try openNewOutputFmtCtx()
         }
-        shouldOpenNewFile.store(true)
+        shouldOpenNewFile = true
     }
     
     public func onExit(_ closure: @escaping () -> Void) {

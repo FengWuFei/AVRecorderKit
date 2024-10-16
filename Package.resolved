@@ -1,0 +1,24 @@
+{
+  "originHash" : "b619b6e465450a927790e02d057fc46bebb423baf6493131a8a7ef1cdecee1ec",
+  "pins" : [
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "9cb486020ebf03bfa5b5df985387a14a98744537",
+        "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swiftffmpeg",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sunlubo/SwiftFFmpeg.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "41efaf44d9d4e765992bd738d83524ff92009505"
+      }
+    }
+  ],
+  "version" : 3
+}
