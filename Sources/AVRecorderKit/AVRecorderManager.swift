@@ -1,12 +1,9 @@
 import Foundation
-import class NIOConcurrencyHelpers.Lock
-import NIO
 
-public class AVRecordManager {
+public final class AVRecordManager {
     public var storage: [String: AVRecorderContext] = [:]
     private var workeQueue: DispatchQueue
-    private var lock: Lock
-    
+    private var lock: NSLock
     
     public enum StartState {
         case success
@@ -15,7 +12,7 @@ public class AVRecordManager {
     
     public init() {
         self.workeQueue = DispatchQueue(label: ".com.ly.AVRecorder.workQueue", attributes: .concurrent)
-        self.lock = Lock()
+        self.lock = NSLock()
     }
     
     public func get(_ key: String) -> AVRecorderContext?{
@@ -25,13 +22,13 @@ public class AVRecordManager {
     }
     
     public func set(key: String, value: AVRecorderContext) {
-        lock.withLockVoid {
+        lock.withLock {
             storage[key] = value
         }
     }
     
     public func remove(key: String) {
-        lock.withLockVoid {
+        _ = lock.withLock {
             storage.removeValue(forKey: key)
         }
     }
@@ -39,7 +36,7 @@ public class AVRecordManager {
     public func startStreamRecoderWith(inputUrl: String, outputDirectory: URL, streamName: String, completeHandler: @escaping (StartState) -> Void) {
         if let rCtx = get(streamName) {
             if rCtx.state == .stop {
-                workeQueue.async {
+                let workItem = DispatchWorkItem(qos: .default) {
                     do {
                         let successHandler = {
                             completeHandler(.success)
@@ -49,6 +46,7 @@ public class AVRecordManager {
                         completeHandler(.fail(error))
                     }
                 }
+                workeQueue.async(execute: workItem)
             } else {
                 completeHandler(.success)
             }
@@ -56,11 +54,11 @@ public class AVRecordManager {
             let rCtx = AVRecorderContext(inputUrl: inputUrl, outputDirectory: outputDirectory, streamName: streamName)
             // 退出从storage中清除
             rCtx.onExit { [weak self] in
-                self?.lock.withLockVoid {
+                _ = self?.lock.withLock {
                     self?.storage.removeValue(forKey: streamName)
                 }                
             }
-            workeQueue.async {
+            let workItem = DispatchWorkItem(qos: .default) {
                 do {
                     let successHandler = { [weak self] in
                         // 成功启动加入storage
@@ -72,6 +70,7 @@ public class AVRecordManager {
                     completeHandler(.fail(error))
                 }
             }
+            workeQueue.async(execute: workItem)
         }
     }
     

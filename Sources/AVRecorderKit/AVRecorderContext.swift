@@ -2,7 +2,7 @@ import Foundation
 import SwiftFFmpeg
 import Logging
 
-public class AVRecorderContext {
+public final class AVRecorderContext {
     public enum AVRecorderState: String {
         case recording, interrupt, stop
     }
