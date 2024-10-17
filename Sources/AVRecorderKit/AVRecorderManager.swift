@@ -1,6 +1,6 @@
 import Foundation
 
-public final class AVRecordManager {
+public final class AVRecordManager: @unchecked Sendable  {
     public var storage: [String: AVRecorderContext] = [:]
     private var workeQueue: DispatchQueue
     private var lock: NSLock
